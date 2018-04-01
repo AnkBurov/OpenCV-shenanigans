@@ -14,15 +14,14 @@ public class ImagesChecker {
 
     public static void main(String[] args) throws IOException {
 
-//        List<File> images = Files.walk(Paths.get("D:\\Downloads\\random photos"))
-        List<File> images = Files.walk(Paths.get("D:\\Downloads\\cars\\cars"))
+        List<File> images = Files.walk(Paths.get("D:\\Downloads\\random photos"))
                 .filter(Files::isRegularFile)
                 .map(Path::toFile)
                 .filter(file -> isImage(file.getName()))
                 .collect(Collectors.toList());
 
         images.parallelStream()
-                .forEach(file -> SamePixelColorMatricsFinder.handleFile(file, 20, 0.75));
+                .forEach(file -> SamePixelColorMatricsFinder.handleFile(file, 20, 0.85));
     }
 
     private static boolean isImage(String fileName) {
