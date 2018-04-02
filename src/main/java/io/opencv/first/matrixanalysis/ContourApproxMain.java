@@ -37,7 +37,8 @@ public class ContourApproxMain extends OpenCvBased {
             Mat hierarchy = matrices.newMatrix("hierarchy");
             Imgproc.findContours(orig_pic, matOfPoints, hierarchy, RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 
-            Imgproc.drawContours(orig_pic, matOfPoints, -1, new Scalar(500));/Op   Imgcodecs.imwrite(file.getName() + "_contours.jpg", orig_pic);
+            Imgproc.drawContours(orig_pic, matOfPoints, -1, new Scalar(500));
+            Imgcodecs.imwrite(file.getName() + "_contours.jpg", orig_pic);
 
             List<MatOfPoint2f> matOfPoint2fs = new ArrayList<>();
             for (MatOfPoint matOfPoint : matOfPoints) {
