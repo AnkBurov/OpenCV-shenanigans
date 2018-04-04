@@ -17,9 +17,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opencv.core.CvType.CV_8UC3;
 import static org.opencv.imgcodecs.Imgcodecs.IMREAD_GRAYSCALE;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C;
@@ -33,57 +36,47 @@ import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 public class RenameShit extends OpenCvBased {
 
     public static void main(String[] args) throws IOException {
-        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
+//        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
+        File file = new ClassPathResource("images/paint.jpg").getFile();
+//        File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
             Mat orig = matrices.fromSupplier("orig", () -> Imgcodecs.imread(file.getAbsolutePath()));
 
-            //https://stackoverflow.com/questions/18627970/adaptive-threshold-with-blurry-image
-            Mat hsv = matrices.newMatrix("hsv");
-            Imgproc.cvtColor(orig, hsv, COLOR_BGR2HSV);
-            writeImage(hsv, file, "_hsv.jpg");
-
             Mat gauss = matrices.newMatrix("gauss");
-            Imgproc.GaussianBlur(orig, gauss, new Size(3, 3), 1);
+            Imgproc.GaussianBlur(orig, gauss, new Size(5, 5), 0.1);
             writeImage(gauss, file, "_gauss.jpg");
 
-            //thresholding
-//            Mat threshold = matrices.newMatrix("threshold");
-//            Imgproc.adaptiveThreshold(orig, threshold, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
-//            writeImage(threshold, file, "_threshold.jpg");
-//
-//            Mat canny = matrices.newMatrix("canny");
-//            Imgproc.Canny(threshold, canny, 50, 100);
-//            writeImage(canny, file, "_canny.jpg");
-//
-//            Mat erode = matrices.newMatrix("erode");
-//            Imgproc.dilate(canny, erode, matrices.newMatrix("kernel"));
-//            writeImage(erode, file, "_erode.jpg");
-//
-//            List<MatOfPoint> contours = new ArrayList<>();
-//            Mat hierarchy = matrices.newMatrix("hierarchy");
-//            Imgproc.findContours(erode, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
-//            System.out.println("Number of contours is: " + contours.size());
-//
-//            List<MatOfPoint> filteredContours = contours.stream()
-////                    .filter(it -> it.rows() > 10 && it.cols() > 10)
-//                    .collect(Collectors.toList());
-//
-//            List<Rect> rectsOfInterest = new ArrayList<>();
-//            for (MatOfPoint filteredContour : filteredContours) {
-//                Rect rect = Imgproc.boundingRect(filteredContour);
-//                if (rect.width > 10 && rect.height > 10) {
-//                    rectsOfInterest.add(rect);
-//                }
-//            }
-//
-//            List<MatOfPoint2f> curves = contours.stream()
-//                    .map(MatOfPoint::toArray)
-//                    .map(MatOfPoint2f::new)
-//                    .collect(Collectors.toList());
+            Mat canny = matrices.newMatrix("canny");
+            Imgproc.Canny(gauss, canny, 1, 10);
+            writeImage(canny, file, "_canny.jpg");
 
-//            System.out.println(rectsOfInterest.size());
+            Mat erode = matrices.newMatrix("erode");
+            Imgproc.dilate(canny, erode, matrices.newMatrix("kernel"));
+            writeImage(erode, file, "_erode.jpg");
+
+            List<MatOfPoint> contours = new ArrayList<>();
+            Mat hierarchy = matrices.newMatrix("hierarchy");
+            Imgproc.findContours(erode, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
+            System.out.println("Number of contours is: " + contours.size());
+
+            Map<Rect, MatOfPoint> rectMatOfPointMap = new HashMap<>();
+            for (MatOfPoint contour : contours) {
+                Rect rect = Imgproc.boundingRect(contour);
+                if (rect.width > 20 && rect.height > 20) {
+                    rectMatOfPointMap.put(rect, contour);
+                }
+            }
+
+            System.out.println(rectMatOfPointMap.size());
+
+            Mat contoursMat = matrices.fromSupplier("contours", () -> new Mat(new Size(orig.width(), orig.height()), CV_8UC3));
+            Imgproc.drawContours(contoursMat, new ArrayList<>(rectMatOfPointMap.values()), -1, new Scalar(500));
+            writeImage(contoursMat, file, "_contours.jpg");
+
+
+
             /*// for each rectangle shit
             for (Rect rect : rectsOfInterest) {
 
@@ -100,6 +93,17 @@ public class RenameShit extends OpenCvBased {
             }*/
         }
     }
+
+    /*//thresholding
+            Mat threshold = matrices.newMatrix("threshold");
+            Imgproc.adaptiveThreshold(orig, threshold, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2);
+            writeImage(threshold, file, "_threshold.jpg");*/
+
+    /*
+            //https://stackoverflow.com/questions/18627970/adaptive-threshold-with-blurry-image
+            Mat hsv = matrices.newMatrix("hsv");
+            Imgproc.cvtColor(orig, hsv, COLOR_BGR2HSV);
+            writeImage(hsv, file, "_hsv.jpg");*/
 
     private static void writeImage(Mat orig, File file, String name) {
         Imgcodecs.imwrite(file.getName() + name, orig);
