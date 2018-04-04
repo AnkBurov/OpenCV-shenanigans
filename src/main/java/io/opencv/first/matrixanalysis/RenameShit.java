@@ -37,8 +37,8 @@ public class RenameShit extends OpenCvBased {
 
     public static void main(String[] args) throws IOException {
 //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
-        File file = new ClassPathResource("images/paint.jpg").getFile();
-//        File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
+//        File file = new ClassPathResource("images/paint.jpg").getFile();
+        File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
@@ -62,10 +62,15 @@ public class RenameShit extends OpenCvBased {
             System.out.println("Number of contours is: " + contours.size());
 
             Map<Rect, MatOfPoint> rectMatOfPointMap = new HashMap<>();
-            for (MatOfPoint contour : contours) {
+            for (int i = 0; i < contours.size(); i++) {
+                MatOfPoint contour = contours.get(i);
                 Rect rect = Imgproc.boundingRect(contour);
                 if (rect.width > 20 && rect.height > 20) {
-                    rectMatOfPointMap.put(rect, contour);
+                    if (hierarchy.get(0, i)[2] == -1) { // means contour has no children
+                        rectMatOfPointMap.put(rect, contour);
+
+                        Imgproc.rectangle(orig, rect.br(), rect.tl(), new Scalar(500));
+                    }
                 }
             }
 
@@ -74,6 +79,8 @@ public class RenameShit extends OpenCvBased {
             Mat contoursMat = matrices.fromSupplier("contours", () -> new Mat(new Size(orig.width(), orig.height()), CV_8UC3));
             Imgproc.drawContours(contoursMat, new ArrayList<>(rectMatOfPointMap.values()), -1, new Scalar(500));
             writeImage(contoursMat, file, "_contours.jpg");
+
+            writeImage(orig, file, "_orig.jpg");
 
 
 
