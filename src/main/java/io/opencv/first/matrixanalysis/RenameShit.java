@@ -40,7 +40,7 @@ import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 public class RenameShit extends OpenCvBased {
 
     private static final int MATRIX_SIZE = 20;
-    private static final int MAX_DEVIATION = 20;
+    private static final int MAX_DEVIATION = 2;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
@@ -62,7 +62,9 @@ public class RenameShit extends OpenCvBased {
             writeImage(canny, file, "_canny.jpg");
 
             Mat erode = matrices.newMatrix("erode");
-            Imgproc.dilate(canny, erode, matrices.newMatrix("kernel"));
+            Mat dilateKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
+                                                       new Size(4, 4));
+            Imgproc.dilate(canny, erode, dilateKernel);
             writeImage(erode, file, "_erode.jpg");
 
             List<MatOfPoint> contours = new ArrayList<>();
