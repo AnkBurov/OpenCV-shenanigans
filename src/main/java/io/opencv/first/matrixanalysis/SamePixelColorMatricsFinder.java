@@ -140,7 +140,7 @@ public class SamePixelColorMatricsFinder extends OpenCvBased {
         return matrices.fromSupplier("croped", () -> new Mat(source, rectCrop));
     }
 
-    private static Boolean isMatrixOfSameColor(Mat image, int row, int column, int matrixSize) {
+    public static Boolean isMatrixOfSameColor(Mat image, int row, int column, int matrixSize) {
         List<double[]> rowStartingPixels = new ArrayList<>();
         for (int matrixRow = 0; matrixRow < matrixSize; matrixRow++) {
             double[] rowStartingPixel = image.get(row + matrixRow, column);

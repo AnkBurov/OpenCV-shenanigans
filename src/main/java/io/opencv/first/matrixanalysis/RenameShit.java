@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.opencv.first.matrixanalysis.SamePixelColorMatricsFinder.isMatrixOfSameColor;
 import static org.opencv.core.CvType.CV_8UC3;
 import static org.opencv.imgcodecs.Imgcodecs.IMREAD_GRAYSCALE;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C;
@@ -36,9 +37,9 @@ import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 public class RenameShit extends OpenCvBased {
 
     public static void main(String[] args) throws IOException {
-//        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
-//        File file = new ClassPathResource("images/paint.jpg").getFile();
-        File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
+        //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
+                File file = new ClassPathResource("images/paint.jpg").getFile();
+//        File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
@@ -73,6 +74,7 @@ public class RenameShit extends OpenCvBased {
                     }
                 }
             }
+            writeImage(orig, file, "_orig.jpg");
 
             System.out.println(rectMatOfPointMap.size());
 
@@ -80,24 +82,42 @@ public class RenameShit extends OpenCvBased {
             Imgproc.drawContours(contoursMat, new ArrayList<>(rectMatOfPointMap.values()), -1, new Scalar(500));
             writeImage(contoursMat, file, "_contours.jpg");
 
-            writeImage(orig, file, "_orig.jpg");
+            detectSameMatrices(orig, rectMatOfPointMap);
+            Imgcodecs.imwrite(file.getName() + "_analyzed.jpg", orig);
+        }
+    }
 
+    private static void detectSameMatrices(Mat orig, Map<Rect, MatOfPoint> rectMatOfPointMap) {
+        List<Map.Entry<Integer, Integer>> rowColumns = new ArrayList<>();
 
+        // local cache of already analyzed matrices
+        Map<Point, Boolean> analyzedMatricesByStartPoint = new HashMap<>();
 
-            /*// for each rectangle shit
-            for (Rect rect : rectsOfInterest) {
+        // for each rectangle shit
+        for (Rect rect : rectMatOfPointMap.keySet()) {
 
-                // analyze each rectangle shit of interest for same matrices
-                for (int row = rect.y; row <= rect.y + rect.height; row++) {
-                    for (int column = rect.x; column <= rect.x + rect.width; column++) {
-
-                        for (int i = 0; i < curves.size(); i++) {
-                            MatOfPoint2f curve = curves.get(0);
-                            Imgproc.pointPolygonTest(curve, new Point(column, row), false);
+            // analyze each rectangle shit of interest for same matrices
+            for (int row = rect.y; row <= rect.y + rect.height; row++) {
+                for (int column = rect.x; column <= rect.x + rect.width; column++) {
+                    analyzedMatricesByStartPoint.computeIfAbsent(new Point(column, row), point -> {
+                        int matrixRow = (int) point.y;
+                        int matrixColumn = (int) point.x;
+                        Boolean matrixOfSameColor = isMatrixOfSameColor(orig, matrixRow, matrixColumn, 20);
+                        if (matrixOfSameColor) {
+                            System.out.println("Matrics starts on row | column " + matrixRow + "|" + matrixColumn + " contains only same color");
+                            rowColumns.add(new AbstractMap.SimpleEntry<>(matrixRow, matrixColumn));
                         }
-                    }
+                        return matrixOfSameColor;
+                    });
                 }
-            }*/
+            }
+        }
+
+        // rectangle the similar matrices and update the image
+        for (Map.Entry<Integer, Integer> rowColumn : rowColumns) {
+            Point startingPoing = new Point(rowColumn.getValue() - 1, rowColumn.getKey() - 1);
+            Point endingPoint = new Point(rowColumn.getValue() - 1 + 20, rowColumn.getKey() - 1 + 20);
+            Imgproc.rectangle(orig, startingPoing, endingPoint, new Scalar(0, 255, 0));
         }
     }
 
