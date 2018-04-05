@@ -2,6 +2,7 @@ package io.opencv.first.matrixanalysis;
 
 import io.opencv.OpenCvBased;
 import io.opencv.util.Matrices;
+import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfDouble;
@@ -20,11 +21,15 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.opencv.first.matrixanalysis.SamePixelColorMatricsFinder.isMatrixOfSameColor;
@@ -39,19 +44,28 @@ import static org.opencv.imgproc.Imgproc.RETR_EXTERNAL;
 import static org.opencv.imgproc.Imgproc.RETR_TREE;
 import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 
+@Slf4j
 public class RenameShit extends OpenCvBased {
 
-    private static final int MATRIX_SIZE = 10;
+    private static final int MATRIX_SIZE = 20;
     private static final int MAX_DEVIATION = 20;
 
-//    private static final int IS_WHITE_THRESHOLD = 750;
+    //    private static final int IS_WHITE_THRESHOLD = 750;
     private static final int IS_WHITE_THRESHOLD = 240;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
-                File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
-//        File file = new ClassPathResource("images/paint.jpg").getFile();
+//        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
+                File file = new ClassPathResource("images/фото ТС 3.JPG").getFile();
+//                File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
+        //        File file = new ClassPathResource("images/paint.jpg").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
+
+        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD);
+    }
+
+    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold) {
+        log.info("Starting analyzing of " + file.getAbsolutePath());
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
@@ -77,11 +91,11 @@ public class RenameShit extends OpenCvBased {
             Imgproc.findContours(erode, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
             System.out.println("Number of contours is: " + contours.size());
 
-            Map<Rect, MatOfPoint> rectMatOfPointMap = new HashMap<>();
+            Map<Rect, MatOfPoint> rectMatOfPointMap = new ConcurrentHashMap<>();
             for (int i = 0; i < contours.size(); i++) {
                 MatOfPoint contour = contours.get(i);
                 Rect rect = Imgproc.boundingRect(contour);
-                if (rect.width > MATRIX_SIZE && rect.height > MATRIX_SIZE) {
+                if (rect.width > matrixSize && rect.height > matrixSize) {
                     if (hierarchy.get(0, i)[2] == -1) { // means contour has no children
                         rectMatOfPointMap.put(rect, contour);
 
@@ -97,7 +111,7 @@ public class RenameShit extends OpenCvBased {
             Imgproc.drawContours(contoursMat, new ArrayList<>(rectMatOfPointMap.values()), -1, new Scalar(500));
             writeImage(contoursMat, file, "_contours.jpg");
 
-            Map<Rect, MatOfPoint> contoursWithSameMatrices = detectSameMatrices(orig, rectMatOfPointMap);
+            Map<Rect, MatOfPoint> contoursWithSameMatrices = detectSameMatrices(orig, rectMatOfPointMap, matrixSize);
             Imgcodecs.imwrite(file.getName() + "_analyzed.jpg", orig);
 
             List<Point> pointsOfSameColorContours = new ArrayList<>();
@@ -107,16 +121,20 @@ public class RenameShit extends OpenCvBased {
                 MatOfPoint contour = entry.getValue();
                 MatOfPoint2f curve = new MatOfPoint2f(contour.toArray());
 
-                List<Point> pointsOfContourArea = new ArrayList<>();
-                for (int row = rect.y; row <= rect.y + rect.height; row++) {
-                    for (int column = rect.x; column <= rect.x + rect.width; column++) {
-                        Point point = new Point(column, row);
-                        boolean belongsToContour = Imgproc.pointPolygonTest(curve, point, false) >= 0;
-                        if (belongsToContour) {
-                            pointsOfContourArea.add(point);
-                        }
-                    }
-                }
+                List<Point> pointsOfContourArea = Collections.synchronizedList(new ArrayList<>());
+                IntStream.rangeClosed(rect.y, rect.y + rect.height)
+                         .parallel()
+                         .forEach(row -> IntStream
+                                 .rangeClosed(rect.x, rect.x + rect.width)
+                                 .parallel()
+                                 .forEach(column -> {
+                                     Point point = new Point(column, row);
+                                     boolean belongsToContour = Imgproc.pointPolygonTest(curve, point, false) >= 0;
+                                     if (belongsToContour) {
+                                         pointsOfContourArea.add(point);
+                                     }
+                                 }));
+
                 System.out.println("Points inside of contour: " + pointsOfContourArea.size());
 
                 List<Double> aggregatedPixelValues = new ArrayList<>();
@@ -128,17 +146,17 @@ public class RenameShit extends OpenCvBased {
                 //calculate standard variance
                 Statistics statistics = new Statistics(aggregatedPixelValues.toArray(new Double[aggregatedPixelValues.size()]));
                 double stdDev = statistics.getStdDev();
-                if (stdDev < MAX_DEVIATION) {
+                if (stdDev < maxDeviation) {
 
                     // check if contour is white inside
 
                     System.out.println("!!!!!!! median is " + statistics.median());
 
-                    if (statistics.median() > IS_WHITE_THRESHOLD) {
+                    if (statistics.median() > whiteThreshold) {
                         ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
                         Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
 
-                        if (medianOfAdjacentPixels < IS_WHITE_THRESHOLD - 30) {
+                        if (medianOfAdjacentPixels < whiteThreshold - 30) {
                             pointsOfSameColorContours.addAll(pointsOfContourArea);
 
                         }
@@ -151,17 +169,20 @@ public class RenameShit extends OpenCvBased {
             for (Point sameColorPoint : pointsOfSameColorContours) {
                 orig_pic.put((int) sameColorPoint.y, (int) sameColorPoint.x, 0, 255, 0);
             }
-            Imgcodecs.imwrite(file.getName() + "_analyzed_similar.jpg", orig_pic);
+            if (!pointsOfSameColorContours.isEmpty()) {
+                Imgcodecs.imwrite(file.getName() + "_analyzed_similar.jpg", orig_pic);
+            }
         }
+        log.info("Ended analyzing of " + file.getAbsolutePath());
     }
 
-    private static Map<Rect, MatOfPoint> detectSameMatrices(Mat orig, Map<Rect, MatOfPoint> rectMatOfPointMap) {
-        Map<Rect, MatOfPoint> contoursWithSameMatrices = new HashMap<>();
+    private static Map<Rect, MatOfPoint> detectSameMatrices(Mat orig, Map<Rect, MatOfPoint> rectMatOfPointMap, int matrixSize) {
+        Map<Rect, MatOfPoint> contoursWithSameMatrices = new ConcurrentHashMap<>();
 
-        List<Map.Entry<Integer, Integer>> rowColumns = new ArrayList<>();
+        List<Map.Entry<Integer, Integer>> rowColumns = Collections.synchronizedList(new ArrayList<>());
 
         // local cache of already analyzed matrices
-        Map<Point, Boolean> analyzedMatricesByStartPoint = new HashMap<>();
+        Map<Point, Boolean> analyzedMatricesByStartPoint = new ConcurrentHashMap<>();
 
         // for each rectangle shit
         for (Map.Entry<Rect, MatOfPoint> entry : rectMatOfPointMap.entrySet()) {
@@ -169,30 +190,33 @@ public class RenameShit extends OpenCvBased {
             MatOfPoint contour = entry.getValue();
 
             // analyze each rectangle shit of interest for same matrices
-            for (int row = rect.y; row <= rect.y + rect.height; row++) {
-                for (int column = rect.x; column <= rect.x + rect.width; column++) {
-                    analyzedMatricesByStartPoint.computeIfAbsent(new Point(column, row), point -> {
-                        int matrixRow = (int) point.y;
-                        int matrixColumn = (int) point.x;
-                        Boolean matrixOfSameColor = isMatrixOfSameColor(orig, matrixRow, matrixColumn, MATRIX_SIZE);
-                        if (matrixOfSameColor) {
-                            //                            System.out.println("Matrics starts on row | column " + matrixRow + "|" + matrixColumn + " contains only same color");
-                            rowColumns.add(new AbstractMap.SimpleEntry<>(matrixRow, matrixColumn));
+            IntStream.rangeClosed(rect.y, rect.y + rect.height)
+                     .parallel()
+                     .forEach(row -> IntStream
+                             .rangeClosed(rect.x, rect.x + rect.width)
+                             .parallel()
+                             .forEach(column -> {
+                                 analyzedMatricesByStartPoint.computeIfAbsent(new Point(column, row), point -> {
+                                     int matrixRow = (int) point.y;
+                                     int matrixColumn = (int) point.x;
+                                     Boolean matrixOfSameColor = isMatrixOfSameColor(orig, matrixRow, matrixColumn, matrixSize);
+                                     if (matrixOfSameColor) {
+                                         //                            System.out.println("Matrics starts on row | column " + matrixRow + "|" + matrixColumn + " contains only same color");
+                                         rowColumns.add(new AbstractMap.SimpleEntry<>(matrixRow, matrixColumn));
 
-                            contoursWithSameMatrices.put(rect, contour);
-                        }
-                        return matrixOfSameColor;
-                    });
-                }
-            }
+                                         contoursWithSameMatrices.put(rect, contour);
+                                     }
+                                     return matrixOfSameColor;
+                                 });
+                             }));
         }
 
         // rectangle the similar matrices and update the image
-        for (Map.Entry<Integer, Integer> rowColumn : rowColumns) {
+        rowColumns.parallelStream().forEach(rowColumn -> {
             Point startingPoing = new Point(rowColumn.getValue() - 1, rowColumn.getKey() - 1);
-            Point endingPoint = new Point(rowColumn.getValue() - 1 + MATRIX_SIZE, rowColumn.getKey() - 1 + MATRIX_SIZE);
+            Point endingPoint = new Point(rowColumn.getValue() - 1 + matrixSize, rowColumn.getKey() - 1 + matrixSize);
             Imgproc.rectangle(orig, startingPoing, endingPoint, new Scalar(0, 255, 0));
-        }
+        });
 
         return contoursWithSameMatrices;
     }
@@ -247,9 +271,9 @@ public class RenameShit extends OpenCvBased {
         double[] bottomMostNeighbourPixel = mat.get((int) extremeShit.getBottomMost().y - numberOfSteps, (int) extremeShit.getBottomMost().x);
 
         Double[] aggregatedPixelValues = Stream.of(leftMostNeighbourPixel, topMostNeighbourPixel, rightMostNeighbourPixel, bottomMostNeighbourPixel)
-                                 .flatMapToDouble(Arrays::stream)
-                                 .boxed()
-                                 .toArray(Double[]::new);
+                                               .flatMapToDouble(Arrays::stream)
+                                               .boxed()
+                                               .toArray(Double[]::new);
         return new Statistics(aggregatedPixelValues).median();
     }
 }
