@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.opencv.first.matrixanalysis.SamePixelColorMatricsFinder.isMatrixOfSameColor;
 import static org.opencv.core.CvType.CV_8UC3;
@@ -39,14 +41,17 @@ import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 
 public class RenameShit extends OpenCvBased {
 
-    private static final int MATRIX_SIZE = 20;
-    private static final int MAX_DEVIATION = 2;
+    private static final int MATRIX_SIZE = 10;
+    private static final int MAX_DEVIATION = 20;
+
+//    private static final int IS_WHITE_THRESHOLD = 750;
+    private static final int IS_WHITE_THRESHOLD = 240;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
-        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
+                File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
 //        File file = new ClassPathResource("images/paint.jpg").getFile();
-//                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
+        //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
@@ -63,7 +68,7 @@ public class RenameShit extends OpenCvBased {
 
             Mat erode = matrices.newMatrix("erode");
             Mat dilateKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
-                                                       new Size(4, 4));
+                                                             new Size(4, 4));
             Imgproc.dilate(canny, erode, dilateKernel);
             writeImage(erode, file, "_erode.jpg");
 
@@ -124,7 +129,22 @@ public class RenameShit extends OpenCvBased {
                 Statistics statistics = new Statistics(aggregatedPixelValues.toArray(new Double[aggregatedPixelValues.size()]));
                 double stdDev = statistics.getStdDev();
                 if (stdDev < MAX_DEVIATION) {
-                    pointsOfSameColorContours.addAll(pointsOfContourArea);
+
+                    // check if contour is white inside
+
+                    System.out.println("!!!!!!! median is " + statistics.median());
+
+                    if (statistics.median() > IS_WHITE_THRESHOLD) {
+                        ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
+
+                        if (medianOfAdjacentPixels < IS_WHITE_THRESHOLD - 30) {
+                            pointsOfSameColorContours.addAll(pointsOfContourArea);
+
+                        }
+                    } else {
+                        pointsOfSameColorContours.addAll(pointsOfContourArea);
+                    }
                 }
             }
 
@@ -156,7 +176,7 @@ public class RenameShit extends OpenCvBased {
                         int matrixColumn = (int) point.x;
                         Boolean matrixOfSameColor = isMatrixOfSameColor(orig, matrixRow, matrixColumn, MATRIX_SIZE);
                         if (matrixOfSameColor) {
-//                            System.out.println("Matrics starts on row | column " + matrixRow + "|" + matrixColumn + " contains only same color");
+                            //                            System.out.println("Matrics starts on row | column " + matrixRow + "|" + matrixColumn + " contains only same color");
                             rowColumns.add(new AbstractMap.SimpleEntry<>(matrixRow, matrixColumn));
 
                             contoursWithSameMatrices.put(rect, contour);
@@ -188,7 +208,48 @@ public class RenameShit extends OpenCvBased {
             Imgproc.cvtColor(orig, hsv, COLOR_BGR2HSV);
             writeImage(hsv, file, "_hsv.jpg");*/
 
-    private static void writeImage(Mat orig, File file, String name) {
+    public static void writeImage(Mat orig, File file, String name) {
         Imgcodecs.imwrite(file.getName() + name, orig);
+    }
+
+    private static ExtremeShit getExtremeShit(List<Point> points) {
+        if (points.isEmpty()) {
+            return null;
+        }
+        Point leftMost;
+        Point topMost;
+        Point rightMost;
+        Point bottomMost;
+
+        List<Point> sortedByX = points.stream()
+                                      .sorted(Comparator.comparing(it -> it.x))
+                                      .collect(Collectors.toList());
+        leftMost = sortedByX.get(0);
+        rightMost = sortedByX.get(sortedByX.size() - 1);
+
+        List<Point> sortedByY = points.stream()
+                                      .sorted(Comparator.comparing(it -> it.y))
+                                      .collect(Collectors.toList());
+        bottomMost = sortedByY.get(0);
+        topMost = sortedByY.get(sortedByY.size() - 1);
+        return ExtremeShit.builder()
+                          .leftMost(leftMost)
+                          .topMost(topMost)
+                          .rightMost(rightMost)
+                          .bottomMost(bottomMost)
+                          .build();
+    }
+
+    private static Double getMedianOfAdjacentPixels(Mat mat, ExtremeShit extremeShit, int numberOfSteps) {
+        double[] leftMostNeighbourPixel = mat.get((int) extremeShit.getLeftMost().y, (int) extremeShit.getLeftMost().x - numberOfSteps);
+        double[] topMostNeighbourPixel = mat.get((int) extremeShit.getTopMost().y + numberOfSteps, (int) extremeShit.getTopMost().x);
+        double[] rightMostNeighbourPixel = mat.get((int) extremeShit.getRightMost().y, (int) extremeShit.getRightMost().x + numberOfSteps);
+        double[] bottomMostNeighbourPixel = mat.get((int) extremeShit.getBottomMost().y - numberOfSteps, (int) extremeShit.getBottomMost().x);
+
+        Double[] aggregatedPixelValues = Stream.of(leftMostNeighbourPixel, topMostNeighbourPixel, rightMostNeighbourPixel, bottomMostNeighbourPixel)
+                                 .flatMapToDouble(Arrays::stream)
+                                 .boxed()
+                                 .toArray(Double[]::new);
+        return new Statistics(aggregatedPixelValues).median();
     }
 }
