@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -52,20 +53,21 @@ public class RenameShit extends OpenCvBased {
 
     //    private static final int IS_WHITE_THRESHOLD = 750;
     private static final int IS_WHITE_THRESHOLD = 240;
+    private static final int IS_BLACK_THRESHOLD = 10;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
         //        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
 //                        File file = new ClassPathResource("images/spacex_photoshoped.jpg").getFile();
-//                        File file = new ClassPathResource("images/фото ТС 3.JPG").getFile();
-//        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
-                        File file = new ClassPathResource("images/paint.jpg").getFile();
+//                        File file = new ClassPathResource("images/фото ТС 2.JPG").getFile();
+        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
+//                        File file = new ClassPathResource("images/IMG_5023_1600.png").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
-        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD);
+        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD, IS_BLACK_THRESHOLD);
     }
 
-    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold) {
+    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold, int blackThreshold) {
         log.info("Starting analyzing of " + file.getAbsolutePath());
 
         //todo try sharpen image
@@ -155,17 +157,24 @@ public class RenameShit extends OpenCvBased {
                 double stdDev = statistics.getStdDev();
                 if (stdDev < maxDeviation) {
 
+                    double median = statistics.median();
+
                     // check if contour is white inside
+                    System.out.println("!!!!!!! median is " + median);
 
-                    System.out.println("!!!!!!! median is " + statistics.median());
-
-                    if (statistics.median() > whiteThreshold) {
+                    if (median > whiteThreshold) {
                         ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
                         Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
 
-                        if (medianOfAdjacentPixels < whiteThreshold - 30) {
+                        if (medianOfAdjacentPixels < whiteThreshold) { //todo remove?
                             pointsOfSameColorContours.addAll(pointsOfContourArea);
+                        }
+                    } else if (median < blackThreshold) {
+                        ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
 
+                        if (medianOfAdjacentPixels > blackThreshold - 10) { //todo remove?
+                            pointsOfSameColorContours.addAll(pointsOfContourArea);
                         }
                     } else {
                         // check if color difference with adjacent pixels is not too small
@@ -288,6 +297,7 @@ public class RenameShit extends OpenCvBased {
         double[] bottomMostNeighbourPixel = mat.get((int) extremeShit.getBottomMost().y - numberOfSteps, (int) extremeShit.getBottomMost().x);
 
         Double[] aggregatedPixelValues = Stream.of(leftMostNeighbourPixel, topMostNeighbourPixel, rightMostNeighbourPixel, bottomMostNeighbourPixel)
+                                               .filter(it -> it != null)
                                                .flatMapToDouble(Arrays::stream)
                                                .boxed()
                                                .toArray(Double[]::new);
