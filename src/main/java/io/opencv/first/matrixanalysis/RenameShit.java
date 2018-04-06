@@ -48,17 +48,18 @@ import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 public class RenameShit extends OpenCvBased {
 
     private static final int MATRIX_SIZE = 20;
-    private static final int MAX_DEVIATION = 20;
+    private static final int MAX_DEVIATION = 2;
 
     //    private static final int IS_WHITE_THRESHOLD = 750;
     private static final int IS_WHITE_THRESHOLD = 240;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
-//        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
-                File file = new ClassPathResource("images/фото ТС 3.JPG").getFile();
-//                File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
-        //        File file = new ClassPathResource("images/paint.jpg").getFile();
+        //        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
+//                        File file = new ClassPathResource("images/spacex_photoshoped.jpg").getFile();
+//                        File file = new ClassPathResource("images/фото ТС 3.JPG").getFile();
+//        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
+                        File file = new ClassPathResource("images/paint.jpg").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
         handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD);
@@ -77,7 +78,10 @@ public class RenameShit extends OpenCvBased {
             writeImage(gauss, file, "_gauss.jpg");
 
             Mat canny = matrices.newMatrix("canny");
-            Imgproc.Canny(gauss, canny, 1, 10);
+            Imgproc.Canny(gauss, canny, 5, 10);
+                        Imgproc.blur(canny, canny,  new Size(2, 2));
+            //            Imgproc.GaussianBlur(canny, canny,, 5);
+            //            Imgproc.GaussianBlur(canny, canny, new Size(3, 3), 1);
             writeImage(canny, file, "_canny.jpg");
 
             Mat erode = matrices.newMatrix("erode");
@@ -92,17 +96,20 @@ public class RenameShit extends OpenCvBased {
             System.out.println("Number of contours is: " + contours.size());
 
             Map<Rect, MatOfPoint> rectMatOfPointMap = new ConcurrentHashMap<>();
-            for (int i = 0; i < contours.size(); i++) {
-                MatOfPoint contour = contours.get(i);
-                Rect rect = Imgproc.boundingRect(contour);
-                if (rect.width > matrixSize && rect.height > matrixSize) {
-                    if (hierarchy.get(0, i)[2] == -1) { // means contour has no children
-                        rectMatOfPointMap.put(rect, contour);
+            // means contour has no children
+            IntStream.range(0, contours.size())
+                     .parallel()
+                     .forEach(i -> {
+                         MatOfPoint contour = contours.get(i);
+                         Rect rect = Imgproc.boundingRect(contour);
+                         if (rect.width > matrixSize && rect.height > matrixSize) {
+                             if (hierarchy.get(0, i)[2] == -1) { // means contour has no children
+                                 rectMatOfPointMap.put(rect, contour);
 
-                        Imgproc.rectangle(orig, rect.br(), rect.tl(), new Scalar(500));
-                    }
-                }
-            }
+                                 Imgproc.rectangle(orig, rect.br(), rect.tl(), new Scalar(500));
+                             }
+                         }
+                     });
             writeImage(orig, file, "_orig.jpg");
 
             System.out.println(rectMatOfPointMap.size());
@@ -112,7 +119,7 @@ public class RenameShit extends OpenCvBased {
             writeImage(contoursMat, file, "_contours.jpg");
 
             Map<Rect, MatOfPoint> contoursWithSameMatrices = detectSameMatrices(orig, rectMatOfPointMap, matrixSize);
-            Imgcodecs.imwrite(file.getName() + "_analyzed.jpg", orig);
+            //            Imgcodecs.imwrite(file.getName() + "_analyzed.jpg", orig);
 
             List<Point> pointsOfSameColorContours = new ArrayList<>();
 
@@ -161,7 +168,15 @@ public class RenameShit extends OpenCvBased {
 
                         }
                     } else {
+                        // check if color difference with adjacent pixels is not too small
+                        //                        ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
+                        //                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 5); //tune maybe recursive
+
+                        //                        System.out.println("Median " + statistics.median() + " medianOfAdjacentPixels " + medianOfAdjacentPixels);
+                        //                        if (statistics.median() - medianOfAdjacentPixels >= 1
+                        //                                || statistics.median() - medianOfAdjacentPixels <= -1) {
                         pointsOfSameColorContours.addAll(pointsOfContourArea);
+                        //                        }
                     }
                 }
             }
@@ -213,8 +228,8 @@ public class RenameShit extends OpenCvBased {
 
         // rectangle the similar matrices and update the image
         rowColumns.parallelStream().forEach(rowColumn -> {
-            Point startingPoing = new Point(rowColumn.getValue() - 1, rowColumn.getKey() - 1);
-            Point endingPoint = new Point(rowColumn.getValue() - 1 + matrixSize, rowColumn.getKey() - 1 + matrixSize);
+            Point startingPoing = new Point(rowColumn.getValue(), rowColumn.getKey());
+            Point endingPoint = new Point(rowColumn.getValue() + matrixSize, rowColumn.getKey() + matrixSize);
             Imgproc.rectangle(orig, startingPoing, endingPoint, new Scalar(0, 255, 0));
         });
 
@@ -233,7 +248,9 @@ public class RenameShit extends OpenCvBased {
             writeImage(hsv, file, "_hsv.jpg");*/
 
     public static void writeImage(Mat orig, File file, String name) {
-        Imgcodecs.imwrite(file.getName() + name, orig);
+        if (false) {
+            Imgcodecs.imwrite(file.getName() + name, orig);
+        }
     }
 
     private static ExtremeShit getExtremeShit(List<Point> points) {

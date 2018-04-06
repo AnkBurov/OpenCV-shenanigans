@@ -32,8 +32,7 @@ public class Statistics {
 
     public double median() {
         Arrays.sort(data);
-
-        if (data.length % 2 == 0) {
+        if ((data.length & 1) == 0) {
             return (data[(data.length / 2) - 1] + data[data.length / 2]) / 2.0;
         }
         return data[data.length / 2];
