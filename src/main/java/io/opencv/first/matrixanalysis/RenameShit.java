@@ -53,26 +53,27 @@ public class RenameShit extends OpenCvBased {
 
     //    private static final int IS_WHITE_THRESHOLD = 750;
     private static final int IS_WHITE_THRESHOLD = 240;
-    private static final int IS_BLACK_THRESHOLD = 10;
+    private static final int IS_BLACK_THRESHOLD = 15;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
         //        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
-//                        File file = new ClassPathResource("images/spacex_photoshoped.jpg").getFile();
+                        File file = new ClassPathResource("images/618_c56bd967-4aad-4a75-b750-9df320a9d0cd.jpg").getFile();
 //                        File file = new ClassPathResource("images/фото ТС 2.JPG").getFile();
-        File file = new ClassPathResource("images/фото ТС 2_edited.JPG").getFile();
+//        File file = new ClassPathResource("images/132_029eac4e-05b7-477d-b903-996bc61e622f.jpg").getFile();
 //                        File file = new ClassPathResource("images/IMG_5023_1600.png").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
-        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD, IS_BLACK_THRESHOLD);
+        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD, IS_BLACK_THRESHOLD, 0.9);
     }
 
-    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold, int blackThreshold) {
+    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold, int blackThreshold, double percentToSave) {
         log.info("Starting analyzing of " + file.getAbsolutePath());
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
-            Mat orig = matrices.fromSupplier("orig", () -> Imgcodecs.imread(file.getAbsolutePath()));
+            Mat orig_notCropped = matrices.fromSupplier("orig", () -> Imgcodecs.imread(file.getAbsolutePath()));
+            Mat orig = cropUpperBound(matrices, orig_notCropped, percentToSave);
             Mat orig_pic = matrices.fromSupplier("orig_pic", orig::clone);
 
             Mat gauss = matrices.newMatrix("gauss");
@@ -80,7 +81,7 @@ public class RenameShit extends OpenCvBased {
             writeImage(gauss, file, "_gauss.jpg");
 
             Mat canny = matrices.newMatrix("canny");
-            Imgproc.Canny(gauss, canny, 5, 10);
+            Imgproc.Canny(gauss, canny, 3, 10);
 //                        Imgproc.blur(canny, canny,  new Size(2, 2));
             //            Imgproc.GaussianBlur(canny, canny,, 5);
             //            Imgproc.GaussianBlur(canny, canny, new Size(3, 3), 1);
@@ -303,4 +304,22 @@ public class RenameShit extends OpenCvBased {
                                                .toArray(Double[]::new);
         return new Statistics(aggregatedPixelValues).median();
     }
+
+    private static Mat cropUpperBound(Matrices matrices, Mat source, double percentToSave) {
+//        Double width = source.cols() * percentToSave;
+//        Double height = source.rows() * percentToSave;
+//        int x = source.cols() - width.intValue();
+//        int y = source.rows() - height.intValue();
+//
+//        Rect rectCrop = new Rect(x, y, width.intValue() - x, height.intValue() - y);
+//        return matrices.fromSupplier("croped", () -> new Mat(source, rectCrop));
+        Double width = (double) source.cols();
+        Double height = source.rows() * percentToSave;
+        int x = 0;
+        int y = source.rows() - height.intValue();
+
+        Rect rectCrop = new Rect(x, y, width.intValue(), height.intValue());
+        return matrices.fromSupplier("croped", () -> new Mat(source, rectCrop));
+    }
+
 }

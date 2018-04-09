@@ -25,7 +25,7 @@ public class ImagesChecker {
 
         images.parallelStream()
               //                .forEach(file -> SamePixelColorMatricsFinder.handleFile(file, 20, 0.85));
-              .forEach(file -> RenameShit.handleFile(file, 20, 2, 240));
+              .forEach(file -> RenameShit.handleFile(file, 20, 2, 240, 15, 0.9));
     }
 
     private static boolean isImage(String fileName) {
