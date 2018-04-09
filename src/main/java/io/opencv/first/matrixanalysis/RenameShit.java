@@ -60,7 +60,7 @@ public class RenameShit extends OpenCvBased {
         //        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
 //                        File file = new ClassPathResource("images/spacex_photoshoped.jpg").getFile();
 //                        File file = new ClassPathResource("images/фото ТС 2.JPG").getFile();
-        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
+        File file = new ClassPathResource("images/фото ТС 2_edited.JPG").getFile();
 //                        File file = new ClassPathResource("images/IMG_5023_1600.png").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
@@ -81,7 +81,7 @@ public class RenameShit extends OpenCvBased {
 
             Mat canny = matrices.newMatrix("canny");
             Imgproc.Canny(gauss, canny, 5, 10);
-                        Imgproc.blur(canny, canny,  new Size(2, 2));
+//                        Imgproc.blur(canny, canny,  new Size(2, 2));
             //            Imgproc.GaussianBlur(canny, canny,, 5);
             //            Imgproc.GaussianBlur(canny, canny, new Size(3, 3), 1);
             writeImage(canny, file, "_canny.jpg");
@@ -164,16 +164,16 @@ public class RenameShit extends OpenCvBased {
 
                     if (median > whiteThreshold) {
                         ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
-                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 2);
 
                         if (medianOfAdjacentPixels < whiteThreshold) { //todo remove?
                             pointsOfSameColorContours.addAll(pointsOfContourArea);
                         }
                     } else if (median < blackThreshold) {
                         ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
-                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 2);
 
-                        if (medianOfAdjacentPixels > blackThreshold - 10) { //todo remove?
+                        if (medianOfAdjacentPixels > blackThreshold) { //todo remove?
                             pointsOfSameColorContours.addAll(pointsOfContourArea);
                         }
                     } else {
