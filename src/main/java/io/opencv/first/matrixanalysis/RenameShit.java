@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -52,25 +53,27 @@ public class RenameShit extends OpenCvBased {
 
     //    private static final int IS_WHITE_THRESHOLD = 750;
     private static final int IS_WHITE_THRESHOLD = 240;
+    private static final int IS_BLACK_THRESHOLD = 15;
 
     public static void main(String[] args) throws IOException {
         //        File file = new ClassPathResource("images/14_photoshoped.jpg").getFile();
         //        File file = new ClassPathResource("images/photo17_edited.jpg").getFile();
-//                        File file = new ClassPathResource("images/spacex_photoshoped.jpg").getFile();
-//                        File file = new ClassPathResource("images/фото ТС 3.JPG").getFile();
-//        File file = new ClassPathResource("images/IMG_1365.JPG").getFile();
-                        File file = new ClassPathResource("images/paint.jpg").getFile();
+                        File file = new ClassPathResource("images/618_c56bd967-4aad-4a75-b750-9df320a9d0cd.jpg").getFile();
+//                        File file = new ClassPathResource("images/фото ТС 2.JPG").getFile();
+//        File file = new ClassPathResource("images/132_029eac4e-05b7-477d-b903-996bc61e622f.jpg").getFile();
+//                        File file = new ClassPathResource("images/IMG_5023_1600.png").getFile();
         //                File file = new ClassPathResource("images/IMG_1374.JPG").getFile();
 
-        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD);
+        handleFile(file, MATRIX_SIZE, MAX_DEVIATION, IS_WHITE_THRESHOLD, IS_BLACK_THRESHOLD, 0.9);
     }
 
-    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold) {
+    public static void handleFile(File file, int matrixSize, int maxDeviation, int whiteThreshold, int blackThreshold, double percentToSave) {
         log.info("Starting analyzing of " + file.getAbsolutePath());
 
         //todo try sharpen image
         try (Matrices matrices = new Matrices()) {
-            Mat orig = matrices.fromSupplier("orig", () -> Imgcodecs.imread(file.getAbsolutePath()));
+            Mat orig_notCropped = matrices.fromSupplier("orig", () -> Imgcodecs.imread(file.getAbsolutePath()));
+            Mat orig = cropUpperBound(matrices, orig_notCropped, percentToSave);
             Mat orig_pic = matrices.fromSupplier("orig_pic", orig::clone);
 
             Mat gauss = matrices.newMatrix("gauss");
@@ -78,8 +81,8 @@ public class RenameShit extends OpenCvBased {
             writeImage(gauss, file, "_gauss.jpg");
 
             Mat canny = matrices.newMatrix("canny");
-            Imgproc.Canny(gauss, canny, 5, 10);
-                        Imgproc.blur(canny, canny,  new Size(2, 2));
+            Imgproc.Canny(gauss, canny, 3, 10);
+//                        Imgproc.blur(canny, canny,  new Size(2, 2));
             //            Imgproc.GaussianBlur(canny, canny,, 5);
             //            Imgproc.GaussianBlur(canny, canny, new Size(3, 3), 1);
             writeImage(canny, file, "_canny.jpg");
@@ -155,17 +158,24 @@ public class RenameShit extends OpenCvBased {
                 double stdDev = statistics.getStdDev();
                 if (stdDev < maxDeviation) {
 
+                    double median = statistics.median();
+
                     // check if contour is white inside
+                    System.out.println("!!!!!!! median is " + median);
 
-                    System.out.println("!!!!!!! median is " + statistics.median());
-
-                    if (statistics.median() > whiteThreshold) {
+                    if (median > whiteThreshold) {
                         ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
-                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 1);
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 2);
 
-                        if (medianOfAdjacentPixels < whiteThreshold - 30) {
+                        if (medianOfAdjacentPixels < whiteThreshold) { //todo remove?
                             pointsOfSameColorContours.addAll(pointsOfContourArea);
+                        }
+                    } else if (median < blackThreshold) {
+                        ExtremeShit extremeShit = getExtremeShit(pointsOfContourArea); // null check
+                        Double medianOfAdjacentPixels = getMedianOfAdjacentPixels(orig_pic, extremeShit, 2);
 
+                        if (medianOfAdjacentPixels > blackThreshold) { //todo remove?
+                            pointsOfSameColorContours.addAll(pointsOfContourArea);
                         }
                     } else {
                         // check if color difference with adjacent pixels is not too small
@@ -288,9 +298,28 @@ public class RenameShit extends OpenCvBased {
         double[] bottomMostNeighbourPixel = mat.get((int) extremeShit.getBottomMost().y - numberOfSteps, (int) extremeShit.getBottomMost().x);
 
         Double[] aggregatedPixelValues = Stream.of(leftMostNeighbourPixel, topMostNeighbourPixel, rightMostNeighbourPixel, bottomMostNeighbourPixel)
+                                               .filter(it -> it != null)
                                                .flatMapToDouble(Arrays::stream)
                                                .boxed()
                                                .toArray(Double[]::new);
         return new Statistics(aggregatedPixelValues).median();
     }
+
+    private static Mat cropUpperBound(Matrices matrices, Mat source, double percentToSave) {
+//        Double width = source.cols() * percentToSave;
+//        Double height = source.rows() * percentToSave;
+//        int x = source.cols() - width.intValue();
+//        int y = source.rows() - height.intValue();
+//
+//        Rect rectCrop = new Rect(x, y, width.intValue() - x, height.intValue() - y);
+//        return matrices.fromSupplier("croped", () -> new Mat(source, rectCrop));
+        Double width = (double) source.cols();
+        Double height = source.rows() * percentToSave;
+        int x = 0;
+        int y = source.rows() - height.intValue();
+
+        Rect rectCrop = new Rect(x, y, width.intValue(), height.intValue());
+        return matrices.fromSupplier("croped", () -> new Mat(source, rectCrop));
+    }
+
 }
