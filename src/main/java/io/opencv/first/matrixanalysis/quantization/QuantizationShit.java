@@ -1,20 +1,28 @@
 package io.opencv.first.matrixanalysis.quantization;
 
 import org.springframework.core.io.ClassPathResource;
+import org.w3c.dom.NodeList;
 
+import javax.imageio.IIOException;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.plugins.jpeg.JPEGQTable;
+import javax.imageio.stream.ImageInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Scanner;
-import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 public class QuantizationShit {
     public static void main(String[] args) throws IOException {
@@ -41,6 +49,16 @@ public class QuantizationShit {
             }
 
             return getQuantizationTables(stream);
+        }
+    }
+
+    public List<List<Integer>> parseQuantizationTablesUsingImageIO(File file) throws IOException {
+        try (FileInputStream stream = new FileInputStream(file)) {
+            if (!isJpeg(stream)) {
+                throw new IllegalArgumentException(file + " It's not JPEG");
+            }
+
+            return getQuantizationTables(file);
         }
     }
 
@@ -85,5 +103,44 @@ public class QuantizationShit {
         } while (firstByte != -1 && secondByte != -1);
 
         return quantizationTables;
+    }
+
+    private static List<List<Integer>> getQuantizationTables(File file) throws IOException {
+        List<JPEGQTable> jpegQTables = new ArrayList<>();
+
+        try (ImageInputStream stream = ImageIO.createImageInputStream(file)) {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
+
+            while (readers.hasNext()) {
+                ImageReader reader = readers.next();
+                reader.setInput(stream);
+
+                IIOMetadata metadata;
+                try {
+                    metadata = reader.getImageMetadata(0);
+                } catch (IIOException e) {
+                    return Collections.emptyList();
+                }
+
+                IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(metadata.getNativeMetadataFormatName());
+                NodeList dqt = root.getElementsByTagName("dqt");
+
+                for (int dqtIndex = 0; dqtIndex < dqt.getLength(); dqtIndex++) {
+                    NodeList dqtables = ((IIOMetadataNode) dqt.item(dqtIndex)).getElementsByTagName("dqtable");
+
+                    for (int i = 0; i < dqtables.getLength(); i++) {
+                        JPEGQTable table = (JPEGQTable) ((IIOMetadataNode) dqtables.item(i)).getUserObject();
+                        jpegQTables.add(table);
+                    }
+                }
+            }
+        }
+
+        return jpegQTables.stream()
+                          .map(JPEGQTable::getTable)
+                          .map(it -> Arrays.stream(it)
+                                           .boxed()
+                                           .collect(Collectors.toList()))
+                          .collect(Collectors.toList());
     }
 }

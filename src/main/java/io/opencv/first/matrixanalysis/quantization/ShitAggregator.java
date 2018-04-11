@@ -30,18 +30,21 @@ public class ShitAggregator {
     public void checkFile(File file) {
         try {
             Optional<String> model = metadataParser.parseModel(file.toPath());
-            List<Integer> connectedQuantizationValues = quantizationShit.parseQuantizationTables(file)
-                                                                        .stream()
-                                                                        .flatMap(Collection::stream)
-                                                                        .collect(Collectors.toList());
+
+            List<List<Integer>> tables = quantizationShit.parseQuantizationTablesUsingImageIO(file);
+
+            List<Integer> connectedQuantizationValues = tables
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toList());
 
             String joinedValues = StringUtils.join(connectedQuantizationValues, "");
 
-            MessageDigest digest = MessageDigest.getInstance("MD5");
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(joinedValues.getBytes("UTF-8"));
             String hash = Hex.encodeHexString(digest.digest());
 
-            jdbcTemplate.update("insert into DEVICE_HASH (MODEL, QUANTIZATION_HASH) values (?, ?)", model.orElse("UNKNOWN"), hash);
+            jdbcTemplate.update("insert into DEVICE_HASH (MODEL, QUANTIZATION_HASH, FILE) values (?, ?, ?)", model.orElse("UNKNOWN"), hash, file.getName());
 
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
@@ -49,11 +52,11 @@ public class ShitAggregator {
     }
 
     public static void main(String[] args) throws NoSuchAlgorithmException, IOException {
-        File file = new ClassPathResource("images/paint.jpg").getFile();
+        File file = new ClassPathResource("images/shit/paint.jpg").getFile();
 
         Optional<String> model = metadataParser.parseModel(file.toPath());
 
-        List<List<Integer>> quantizationTables = quantizationShit.parseQuantizationTables(file);
+        List<List<Integer>> quantizationTables = quantizationShit.parseQuantizationTablesUsingImageIO(file);
 
         List<Integer> connectedQuantizationValues = quantizationTables
                 .stream()
@@ -62,9 +65,13 @@ public class ShitAggregator {
 
         String joinedValues = StringUtils.join(connectedQuantizationValues, "");
 
-        MessageDigest digest = MessageDigest.getInstance("MD5");
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         digest.update(joinedValues.getBytes("UTF-8"));
         String hash = Hex.encodeHexString(digest.digest());
         System.out.println(hash);
+        // iphone 7 c2a08ac61467ca3fc21052744789f406991161ca7f78f4e622ef3e9e6810b02c
+        // iphone 7 80d1db7905b722a486fe7d9a57d52ba6f14e221261474d80350cc73a65d39a45
+        // paint ee420bc5a55c37e2d86477c4db4f4c8ac9869d17574e8c24106419207acd863d
+        // paint ee420bc5a55c37e2d86477c4db4f4c8ac9869d17574e8c24106419207acd863d
     }
 }
