@@ -130,7 +130,7 @@ public class SamePixelColorMatricsFinder extends OpenCvBased {
         log.info("Ended analyzing of " + file.getAbsolutePath());
     }
 
-    private static Mat cropImage(Matrices matrices, Mat source, double percentToSave) {
+    public static Mat cropImage(Matrices matrices, Mat source, double percentToSave) {
         Double width = source.cols() * percentToSave;
         Double height = source.rows() * percentToSave;
         int x = source.cols() - width.intValue();
