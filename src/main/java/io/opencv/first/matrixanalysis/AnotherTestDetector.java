@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 
 import static io.opencv.first.matrixanalysis.SamePixelColorMatricsFinder.cropImage;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C;
-import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_NONE;
 import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE;
 import static org.opencv.imgproc.Imgproc.MORPH_OPEN;
 import static org.opencv.imgproc.Imgproc.RETR_TREE;
@@ -62,7 +61,7 @@ public class AnotherTestDetector extends OpenCvBased {
             // find contours
             List<MatOfPoint> contours = new ArrayList<>();
             Mat hierarchy = matrices.newMatrix("hierarchy");
-            Imgproc.findContours(canny, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
+            Imgproc.findContours(canny, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 
             //draw raw contours
             Mat imgRawContours = matrices.fromSupplier("raw_contours", canny::clone);
@@ -112,6 +111,16 @@ public class AnotherTestDetector extends OpenCvBased {
             //draw rectangles
             Mat secondRects = matrices.fromSupplier("second_rects", canny::clone);
             secondContours.stream()
+//                          .filter(contour -> {
+//                              MatOfPoint2f curve = matrices.fromSupplier(UUID.randomUUID().toString(), MatOfPoint2f::new);
+////                              contour.convertTo(curve, contour.type());
+//                              contour.convertTo(curve, CvType.CV_32FC2);
+//                              double epsilon = 0.01 * Imgproc.arcLength(curve, true);
+//                              MatOfPoint2f approxedCurve = matrices.fromSupplier(UUID.randomUUID().toString(), MatOfPoint2f::new);
+//                              Imgproc.approxPolyDP(curve, approxedCurve, epsilon, true);
+//                              return approxedCurve.rows() < 15;
+////                              return true;
+//                          })
                           .map(Imgproc::boundingRect)
                           .filter(rect -> rect.width > cropped.rows() / 100 * 30)
                           .forEach(rect -> {

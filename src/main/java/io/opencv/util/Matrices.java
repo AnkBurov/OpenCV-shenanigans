@@ -5,6 +5,7 @@ import org.opencv.core.Mat;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -17,6 +18,10 @@ public class Matrices implements AutoCloseable {
 
     public Mat newMatrix(String key){
         return fromSupplier(key, Mat::new);
+    }
+
+    public <T extends Mat> T fromSupplier(Supplier<T> supplier){
+        return fromSupplier(UUID.randomUUID().toString(), supplier);
     }
 
     public <T extends Mat> T fromSupplier(String key, Supplier<T> supplier){
